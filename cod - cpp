@@ -1,0 +1,67 @@
+#include <Arduino.h>
+
+// Definindo os handles das tarefas
+TaskHandle_t TaskBlink;
+TaskHandle_t TaskMonitor;
+
+// Definindo os pinos
+const int ledPin = 2;      // Pino onde o LED está conectado
+const int buttonPin = 0;   // Pino de boot do ESP32
+
+// Variável para controlar a pausa do piscar do LED
+volatile bool pauseBlink = false;
+
+void setup() {
+  Serial.begin(115200);    // Inicializa a comunicação serial
+  pinMode(ledPin, OUTPUT); // Configura o pino do LED como saída
+  pinMode(buttonPin, INPUT_PULLUP); // Configura o pino do botão como entrada com pull-up interno
+
+  // Cria a tarefa para piscar o LED no núcleo 0
+  xTaskCreatePinnedToCore(
+    TaskBlinkCode,   // Função a ser executada pela tarefa
+    "TaskBlink",     // Nome da tarefa
+    10000,           // Tamanho da pilha (em bytes)
+    NULL,            // Parâmetro da tarefa (não utilizado aqui)
+    1,               // Prioridade da tarefa
+    &TaskBlink,      // Handle da tarefa
+    0);              // Núcleo onde a tarefa será executada (0)
+
+  // Cria a tarefa para monitorar o botão no núcleo 1
+  xTaskCreatePinnedToCore(
+    TaskMonitorCode, // Função a ser executada pela tarefa
+    "TaskMonitor",   // Nome da tarefa
+    10000,           // Tamanho da pilha (em bytes)
+    NULL,            // Parâmetro da tarefa (não utilizado aqui)
+    1,               // Prioridade da tarefa
+    &TaskMonitor,    // Handle da tarefa
+    1);              // Núcleo onde a tarefa será executada (1)
+}
+
+void loop() {
+  // O loop principal pode ficar vazio ou realizar outras tarefas
+}
+
+// Função da tarefa que pisca o LED
+void TaskBlinkCode(void * pvParameters) {
+  for(;;) { // Loop infinito da tarefa
+    if (!pauseBlink) { // Verifica se a variável pauseBlink está falsa
+      digitalWrite(ledPin, HIGH); // Liga o LED
+      delay(500);                 // Espera 500 milissegundos
+      digitalWrite(ledPin, LOW);  // Desliga o LED
+      delay(500);                 // Espera 500 milissegundos
+    } else {
+      delay(100); // Pequeno delay para evitar uso excessivo da CPU quando pausado
+    }
+  }
+}
+
+// Função da tarefa que monitora o botão
+void TaskMonitorCode(void * pvParameters) {
+  for(;;) { // Loop infinito da tarefa
+    if (digitalRead(buttonPin) == LOW) { // Verifica se o botão foi pressionado
+      pauseBlink = !pauseBlink; // Alterna o estado de pauseBlink
+      delay(500); // Debounce para evitar múltiplas leituras do botão
+    }
+    delay(100); // Pequeno delay para evitar uso excessivo da CPU
+  }
+}
